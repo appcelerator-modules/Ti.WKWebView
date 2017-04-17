@@ -2,13 +2,13 @@
 # this is your module manifest and used by Titanium
 # during compilation, packaging, distribution, etc.
 #
-version: 1.2.2
+version: 2.0.0
 apiversion: 2
 architectures: armv7 arm64 i386 x86_64
 description: ti.wkwebview
 author: Hans Knoechel
 license: Apache 2
-copyright: Copyright (c) 2016 by Hans Knoechel
+copyright: Copyright (c) 2016 by Hans Knoechel, Copyright (c) 2016-Present by Appcelerator 
 
 # these should not be edited
 name: ti.wkwebview

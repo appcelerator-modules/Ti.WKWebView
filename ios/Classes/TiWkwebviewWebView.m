@@ -7,9 +7,11 @@
 
 #import "TiWkwebviewWebView.h"
 #import "TiWkwebviewWebViewProxy.h"
-#import "TiWkwebviewProcessPoolProxy.h"
+#import "TiWkwebviewConfigurationProxy.h"
+
 #import "TiFilesystemFileProxy.h"
 #import "TiApp.h"
+
 #import "SBJSON.h"
 
 @implementation TiWkwebviewWebView
@@ -20,8 +22,23 @@
 {
     if (_webView == nil) {
         [[TiApp app] attachXHRBridgeIfRequired];
-                
-        _webView = [[WKWebView alloc] initWithFrame:[self bounds] configuration:[self configuration]];
+        
+        TiWkwebviewConfigurationProxy *configProxy = [[self proxy] valueForKey:@"configuration"];
+        WKWebViewConfiguration *config = configProxy ? [configProxy configuration] : [[WKWebViewConfiguration alloc] init];
+        WKUserContentController *controller = [[WKUserContentController alloc] init];
+        
+        if ([TiUtils boolValue:[[self proxy] valueForKey:@"scalePageToFit"] def:YES]) {
+            [controller addUserScript:[TiWkwebviewWebView userScriptScalePageToFit]];
+        }
+        
+        if ([TiUtils boolValue:[[self proxy] valueForKey:@"disableContextMenu"] def:NO]) {
+            [controller addUserScript:[TiWkwebviewWebView userScriptDisableContextMenu]];
+        }
+        
+        [controller addScriptMessageHandler:self name:@"Ti"];
+        [config setUserContentController:controller];
+        
+        _webView = [[WKWebView alloc] initWithFrame:[self bounds] configuration:config];
         
         [_webView setUIDelegate:self];
         [_webView setNavigationDelegate:self];
@@ -148,98 +165,14 @@
     [[self webView] setCustomUserAgent:[TiUtils stringValue:value]];
 }
 
-- (void)setPreferences_:(id)args
-{
-    WKPreferences *prefs = [WKPreferences new];
-    
-    id minimumFontSize = [args valueForKey:@"minimumFontSize"];
-    id javaScriptEnabled = [args valueForKey:@"javaScriptEnabled"];
-    id javaScriptCanOpenWindowsAutomatically = [args valueForKey:@"javaScriptCanOpenWindowsAutomatically"];
-    
-    [prefs setMinimumFontSize:[TiUtils floatValue:minimumFontSize def:0]];
-    [prefs setJavaScriptEnabled:[TiUtils boolValue:javaScriptEnabled def:YES]];
-    [prefs setJavaScriptCanOpenWindowsAutomatically:[TiUtils boolValue:javaScriptCanOpenWindowsAutomatically def:NO]];
-    
-    [[[self webView] configuration] setPreferences:prefs];
-}
-
-- (void)setSelectionGranularity_:(id)value
-{
-    ENSURE_TYPE(value, NSNumber);
-    
-    [[[self webView] configuration] setSelectionGranularity:[TiUtils intValue:value def:WKSelectionGranularityDynamic]];
-}
-
-- (void)setMediaTypesRequiringUserActionForPlayback_:(id)value
-{
-    ENSURE_TYPE(value, NSNumber);
-    
-    [[[self webView] configuration] setMediaTypesRequiringUserActionForPlayback:[TiUtils intValue:value def:WKAudiovisualMediaTypeNone]];
-}
-
-- (void)setSuppressesIncrementalRendering_:(id)value
-{
-    ENSURE_TYPE(value, NSNumber);
-    
-    [[[self webView] configuration] setSuppressesIncrementalRendering:[TiUtils boolValue:value]];
-}
-
-- (void)setAllowsInlineMediaPlayback_:(id)value
-{
-    ENSURE_TYPE(value, NSNumber);
-    
-    [[[self webView] configuration] setAllowsInlineMediaPlayback:[TiUtils boolValue:value]];
-}
-
-- (void)setAllowsAirPlayMediaPlayback_:(id)value
-{
-    ENSURE_TYPE(value, NSNumber);
-    
-    [[[self webView] configuration] setAllowsAirPlayForMediaPlayback:[TiUtils boolValue:value]];
-}
-
-- (void)setAllowsPictureInPictureMediaPlayback_:(id)value
-{
-    ENSURE_TYPE(value, NSNumber);
-    
-    [[[self webView] configuration] setAllowsPictureInPictureMediaPlayback:[TiUtils boolValue:value]];
-}
-
 #pragma mark Utilities
-
-- (WKWebViewConfiguration *)configuration
-{
-    WKWebViewConfiguration *config = [[WKWebViewConfiguration alloc] init];
-    WKUserContentController *controller = [[WKUserContentController alloc] init];
-
-    id processPool = [[self proxy] valueForKey:@"processPool"];
-
-    if ([TiUtils boolValue:[[self proxy] valueForKey:@"scalePageToFit"] def:YES]) {
-        [controller addUserScript:[TiWkwebviewWebView userScriptScalePageToFit]];
-    }
-    
-    if ([TiUtils boolValue:[[self proxy] valueForKey:@"disableContextMenu"] def:NO]) {
-        [controller addUserScript:[TiWkwebviewWebView userScriptDisableContextMenu]];
-    }
-    
-    if ([[self proxy] valueForKey:@"processPool"]) {
-        ENSURE_TYPE(processPool, TiWkwebviewProcessPoolProxy);
-        [config setProcessPool:[(TiWkwebviewProcessPoolProxy*)processPool pool]];
-    }
-    
-    [controller addScriptMessageHandler:self name:@"Ti"];
-    
-    [config setUserContentController:controller];
-
-    return config;
-}
 
 + (WKUserScript *)userScriptScalePageToFit
 {
     NSString *source = @"var meta = document.createElement('meta'); \
-                         meta.setAttribute('name', 'viewport'); \
-                         meta.setAttribute('content', 'width=device-width'); \
-                         document.getElementsByTagName('head')[0].appendChild(meta);";
+    meta.setAttribute('name', 'viewport'); \
+    meta.setAttribute('content', 'width=device-width'); \
+    document.getElementsByTagName('head')[0].appendChild(meta);";
     
     return [[WKUserScript alloc] initWithSource:source injectionTime:WKUserScriptInjectionTimeAtDocumentEnd forMainFrameOnly:YES];
 }
@@ -247,10 +180,10 @@
 + (WKUserScript *)userScriptDisableContextMenu
 {
     NSString *source = @"var style = document.createElement('style'); \
-                         style.type = 'text/css'; \
-                         style.innerText = '*:not(input):not(textarea) { -webkit-user-select: none; -webkit-touch-callout: none; }'; \
-                         var head = document.getElementsByTagName('head')[0]; \
-                         head.appendChild(style);";
+    style.type = 'text/css'; \
+    style.innerText = '*:not(input):not(textarea) { -webkit-user-select: none; -webkit-touch-callout: none; }'; \
+    var head = document.getElementsByTagName('head')[0]; \
+    head.appendChild(style);";
     
     return [[WKUserScript alloc] initWithSource:source
                                   injectionTime:WKUserScriptInjectionTimeAtDocumentEnd
@@ -337,8 +270,26 @@
     return nil;
 }
 
-
 #pragma mark Delegates
+
+
+- (void)userContentController:(WKUserContentController *)userContentController didReceiveScriptMessage:(WKScriptMessage *)message
+{
+    if (![message.name isEqualToString:@"Ti"]) {
+        // Skip messages that are not posted from our Ti namespace
+        // This is necessary to not post events when our App -> WebView hack posts messages
+        return;
+    }
+    
+    if ([[self proxy] _hasListeners:@"message"]) {
+        [[self proxy] fireEvent:@"message" withObject:@{
+                                                @"url": message.frameInfo.request.URL.absoluteString ?: [[NSBundle mainBundle] bundlePath],
+                                                @"body": message.body,
+                                                @"name": message.name,
+                                                @"isMainFrame": NUMBOOL(message.frameInfo.isMainFrame)
+                                                }];
+    }
+}
 
 - (void)webView:(WKWebView *)webView didReceiveAuthenticationChallenge:(NSURLAuthenticationChallenge *)challenge completionHandler:(void (^)(NSURLSessionAuthChallengeDisposition, NSURLCredential * _Nullable))completionHandler
 {
@@ -469,24 +420,6 @@ static NSString * UIKitLocalizedString(NSString *string)
 {
     NSBundle *UIKitBundle = [NSBundle bundleForClass:[UIApplication class]];
     return UIKitBundle ? [UIKitBundle localizedStringForKey:string value:string table:nil] : string;
-}
-
-- (void)userContentController:(WKUserContentController *)userContentController didReceiveScriptMessage:(WKScriptMessage *)message
-{
-    if (![message.name isEqualToString:@"Ti"]) {
-        // Skip messages that are not posted from our Ti namespace
-        // This is necessary to not post events when our App -> WebView hack posts messages
-        return;
-    }
-    
-    if ([[self proxy] _hasListeners:@"message"]) {
-        [[self proxy] fireEvent:@"message" withObject:@{
-                                                        @"url": message.frameInfo.request.URL.absoluteString ?: [[NSBundle mainBundle] bundlePath],
-                                                        @"body": message.body,
-                                                        @"name": message.name,
-                                                        @"isMainFrame": NUMBOOL(message.frameInfo.isMainFrame)
-                                                        }];
-    }
 }
 
 #pragma mark Layout helper

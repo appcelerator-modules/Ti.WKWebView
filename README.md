@@ -35,6 +35,7 @@ Features
 |------|--------|
 | WebView | `WK.createWebView(args)` |
 | ProcessPool | `WK.createProcessPool()` |
+| Configuration | `WK.createConfiguration()` |
 
 ### WebView
 
@@ -43,11 +44,7 @@ Features
 | Name | Type |
 |------|------|
 | disableBounce | Boolean |
-| suppressesIncrementalRendering | Boolean |
 | scalePageToFit | Boolean |
-| allowsInlineMediaPlayback | Boolean |
-| allowsAirPlayMediaPayback | Boolean |
-| allowsPictureInPictureMediaPlaback | Boolean |
 | allowsBackForwardNavigationGestures | Boolean |
 | allowsLinkPreview | Boolean |
 | scrollsToTop | Boolean |
@@ -60,13 +57,10 @@ Features
 | progress | Double |
 | backForwardList | Object |
 | ignoreSslError | Boolean |
-| mediaTypesRequiringUserActionForPlayback | AUDIOVISUAL_MEDIA_TYPE_* |
-| preferences | Object<br/>- minimumFontSize (Double)<br/>- javaScriptEnabled (Boolean)<br/>- javaScriptCanOpenWindowsAutomatically (Boolean) |
 | basicAuhentication | Object<br/>- username (String)<br/>- password (String)<br/>- persistence (CREDENTIAL_PERSISTENCE_*) |
 | cachePolicy | CACHE_POLICY_* |
 | timeout | Double |
-| SelectionGranularity | SELECTION_GRANULARITY_* |
-| processPool | ProcessPool |
+| selectionGranularity | SELECTION_GRANULARITY_* |
 
 #### Methods
 
@@ -149,6 +143,34 @@ webView.addEventListener('title', function(e) {
 webView.stopListeningToProperties(['title']);
 ```
 
+### Configuration
+
+Use the configuration API to configure the initial web-view. This property can only be set when creating the 
+webview and will be ignored when set afterwards. Example:
+```js
+var WK = require('ti.wkwebview');
+
+var config = WK.createConfiguration({
+    allowsPictureInPictureMediaPlaback: true
+});
+
+var webView = WK.createWebView({
+    configuration: config
+});
+```
+
+#### Properties
+
+| Name | Type |
+|------|------|
+| mediaTypesRequiringUserActionForPlayback | AUDIOVISUAL_MEDIA_TYPE_* |
+| suppressesIncrementalRendering | Boolean |
+| preferences | Object<br/>- minimumFontSize (Double)<br/>- javaScriptEnabled (Boolean)<br/>- javaScriptCanOpenWindowsAutomatically (Boolean) |
+| allowsInlineMediaPlayback | Boolean |
+| allowsAirPlayMediaPayback | Boolean |
+| allowsPictureInPictureMediaPlaback | Boolean |
+| processPool | ProcessPool |
+
 ### Process Pool
 
 Use process pools to share cookies between web views. Process pools do not take arguments, just pass the same 
@@ -158,12 +180,20 @@ var WK = require('ti.wkwebview');
 
 var pool = WK.createProcessPool();
 
-var firstWebView = WK.createWebView({
+var config1 = WK.createConfiguration({
     processPool: pool
 });
 
-var secondWebView = WK.createWebView({
+var config2 = WK.createConfiguration({
     processPool: pool
+});
+
+var firstWebView = WK.createWebView({
+    configuration: config1
+});
+
+var secondWebView = WK.createWebView({
+    configuration: config2
 });
 ```
 
