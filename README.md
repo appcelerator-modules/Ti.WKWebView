@@ -65,6 +65,7 @@ Edit the iOS and modules section of your `tiapp.xml` file to include this module
 | allowedURLSchemes | Array\<String\> |
 | touchEnabled | Boolean |
 | willHandleTouches | Boolean |
+| requestHeaders | Object<String, Any> |
 
 #### Methods
 
