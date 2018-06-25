@@ -11,6 +11,7 @@
 
 @interface TiWkwebviewWebView : TiUIView <WKUIDelegate, WKNavigationDelegate, WKScriptMessageHandler> {
     WKWebView *_webView;
+    NSString *_pageToken;
 
     TiDimension width;
     TiDimension height;
@@ -24,5 +25,7 @@
 - (void)registerNotificationCenter;
 
 - (WKWebView *) webView;
+
+- (void)fireEvent:(id)listener withObject:(id)obj remove:(BOOL)yn thisObject:(id)thisObject_;
 
 @end

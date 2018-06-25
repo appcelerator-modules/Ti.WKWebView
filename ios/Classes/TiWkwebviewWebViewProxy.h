@@ -8,9 +8,12 @@
 #import "TiViewProxy.h"
 #import "TiEvaluator.h"
 
-@interface TiWkwebviewWebViewProxy : TiViewProxy {
+@interface TiWkwebviewWebViewProxy : TiViewProxy <TiEvaluator> {
     NSMutableArray<NSString *> *genericProperties;
     NSArray *_allowedURLSchemes;
+    NSString *_pageToken;
 }
+
+- (void)setPageToken:(NSString *)pageToken;
 
 @end

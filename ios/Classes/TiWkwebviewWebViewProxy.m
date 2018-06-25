@@ -26,6 +26,49 @@
     return (TiWkwebviewWebView *)self.view;
 }
 
+- (void)fireEvent:(id)listener withObject:(id)obj remove:(BOOL)yn thisObject:(id)thisObject_
+{
+  TiThreadPerformOnMainThread(^{
+    [[self webView] fireEvent:listener withObject:obj remove:yn thisObject:thisObject_];
+  },
+                              NO);
+}
+
+- (TiHost *)host
+{
+  return [self _host];
+}
+
+- (void)setPageToken:(NSString *)pageToken
+{
+  if (_pageToken != nil) {
+    [[self host] unregisterContext:(id<TiEvaluator>)self forToken:_pageToken];
+    _pageToken = nil;
+  }
+  _pageToken = pageToken;
+  [[self host] registerContext:self forToken:_pageToken];
+}
+
+- (void)windowDidClose
+{
+  if (_pageToken != nil) {
+    [[self host] unregisterContext:(id<TiEvaluator>)self forToken:_pageToken];
+    _pageToken = nil;
+  }
+  NSNotification *notification = [NSNotification notificationWithName:kTiContextShutdownNotification object:self];
+  WARN_IF_BACKGROUND_THREAD_OBJ;
+  [[NSNotificationCenter defaultCenter] postNotification:notification];
+  [super windowDidClose];
+}
+
+- (void)_destroy
+{
+  if (_pageToken != nil) {
+    [[self host] unregisterContext:(id<TiEvaluator>)self forToken:_pageToken];
+    _pageToken = nil;
+  }
+  [super _destroy];
+}
 #pragma mark - Public APIs
 
 #pragma mark Getters

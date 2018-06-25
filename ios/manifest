@@ -6,7 +6,7 @@ version: 2.8.0
 apiversion: 2
 architectures: armv7 arm64 i386 x86_64
 description: ti.wkwebview
-author: Hans Knoechel
+author: Hans Knoechel, Vijay Vikram Singh
 license: Apache 2
 copyright: Copyright (c) 2016 by Hans Knoechel, Copyright (c) 2016-Present by Appcelerator 
 

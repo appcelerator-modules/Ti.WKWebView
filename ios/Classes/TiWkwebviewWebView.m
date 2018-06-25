@@ -14,10 +14,13 @@
 #import "TiFilesystemFileProxy.h"
 #import "TiApp.h"
 #import "TiCallbackManager.h"
+#import "SBJSON.h"
 
 extern NSString * const kTiWKFireEvent;
 extern NSString * const kTiWKAddEventListener;
 extern NSString * const kTiWKEventCallback;
+
+static NSString * const baseInjectScript = @"Ti._hexish=function(a){var r='';var e=a.length;var c=0;var h;while(c<e){h=a.charCodeAt(c++).toString(16);r+='\\\\u';var l=4-h.length;while(l-->0){r+='0'};r+=h}return r};Ti._bridgeEnc=function(o){return'<'+Ti._hexish(o)+'>'};Ti._JSON=function(object,bridge){var type=typeof object;switch(type){case'undefined':case'function':case'unknown':return undefined;case'number':case'boolean':return object;case'string':if(bridge===1)return Ti._bridgeEnc(object);return'\"'+object.replace(/\"/g,'\\\\\"').replace(/\\n/g,'\\\\n').replace(/\\r/g,'\\\\r')+'\"'}if((object===null)||(object.nodeType==1))return'null';if(object.constructor.toString().indexOf('Date')!=-1){return'new Date('+object.getTime()+')'}if(object.constructor.toString().indexOf('Array')!=-1){var res='[';var pre='';var len=object.length;for(var i=0;i<len;i++){var value=object[i];if(value!==undefined)value=Ti._JSON(value,bridge);if(value!==undefined){res+=pre+value;pre=', '}}return res+']'}var objects=[];for(var prop in object){var value=object[prop];if(value!==undefined){value=Ti._JSON(value,bridge)}if(value!==undefined){objects.push(Ti._JSON(prop,bridge)+': '+value)}}return'{'+objects.join(',')+'}'};";
 
 @implementation TiWkwebviewWebView
 
@@ -29,10 +32,12 @@ extern NSString * const kTiWKEventCallback;
         TiWkwebviewConfigurationProxy *configProxy = [[self proxy] valueForKey:@"configuration"];
         WKWebViewConfiguration *config = configProxy ? [configProxy configuration] : [[WKWebViewConfiguration alloc] init];
         WKUserContentController *controller = [[WKUserContentController alloc] init];
-                
+
         [controller addUserScript:[TiWkwebviewWebView userScriptTitaniumInjection]];
-    
+        [controller addUserScript:[self userScriptTitaniumInjectionForAppEvent]];
+        [controller addScriptMessageHandler:self name:@"TiApp"];
         [controller addScriptMessageHandler:self name:@"Ti"];
+
         [config setUserContentController:controller];
         willHandleTouches = [TiUtils boolValue:[[self proxy] valueForKey:@"willHandleTouches"] def:YES];
         
@@ -117,6 +122,21 @@ extern NSString * const kTiWKEventCallback;
     
     [[self proxy] replaceValue:value forKey:@"willHandleTouches" notification:NO];
     willHandleTouches = [TiUtils boolValue:value def:YES];
+}
+
+- (void)fireEvent:(id)listener withObject:(id)obj remove:(BOOL)yn thisObject:(id)thisObject_
+{
+  if (_webView != nil) {
+    NSDictionary *event = (NSDictionary *)obj;
+    NSString *name = [event objectForKey:@"type"];
+    NSString *js = [NSString stringWithFormat:@"Ti.App._dispatchEvent('%@',%@,%@);", name, listener, [TiUtils jsonStringify:event]];
+    [_webView evaluateJavaScript:js
+                     completionHandler:^(id result, NSError *error) {
+                       if (error != nil) {
+                         NSLog(@"[ERROR] Error firing event '%@': %@", name, error.localizedDescription);
+                       }
+                     }];
+  }
 }
 
 #pragma mark Public API's
@@ -319,6 +339,76 @@ extern NSString * const kTiWKEventCallback;
     return [[WKUserScript alloc] initWithSource:source injectionTime:WKUserScriptInjectionTimeAtDocumentStart forMainFrameOnly:NO];
 }
 
+- (WKUserScript *)userScriptTitaniumInjectionForAppEvent
+{
+    if (_pageToken == nil) {
+        _pageToken = [NSString stringWithFormat:@"%lu", (unsigned long)[self hash]];
+        [(TiWkwebviewWebViewProxy *)self.proxy setPageToken:_pageToken];
+    }
+
+    NSString *source = @"var callbacks = {}; var Ti = {}; Ti.pageToken = %@; \
+                        Ti._listener_id = 1; Ti._listeners={}; %@\
+                        Ti.App = { \
+                            fireEvent: function(name, payload) { \
+                                var _payload = payload; \
+                                if (typeof payload === 'string') { \
+                                    _payload = JSON.parse(payload); \
+                                } \
+                                if (callbacks[name]) { \
+                                    callbacks[name](_payload); \
+                                } \
+                                window.webkit.messageHandlers.TiApp.postMessage({name: name, payload: _payload, method: 'fireEvent'},'*'); \
+                            }, \
+                            addEventListener: function(name, callback) { \
+                                callbacks[name] = callback; \
+                                var listeners=Ti._listeners[name]; \
+                                if(typeof(listeners)=='undefined'){ \
+                                    listeners=[];Ti._listeners[name]=listeners} \
+                                    var newid=Ti.pageToken+Ti._listener_id++; \
+                                    listeners.push({callback:callback,id:newid});\
+                                    window.webkit.messageHandlers.TiApp.postMessage({name: name, method: 'addEventListener', callback: Ti._JSON({name:name, id:newid},1)},'*'); \
+                            }, \
+                            removeEventListener: function(name, callback) { \
+                                var listeners=Ti._listeners[name]; \
+                                if(listeners){ \
+                                    for(var c=0;c<listeners.length;c++){ \
+                                        var entry=listeners[c]; \
+                                        if(entry.callback==fn){ \
+                                            listeners.splice(c,1);\
+                                            window.webkit.messageHandlers.TiApp.postMessage({name: name, method: 'removeEventListener', callback: Ti._JSON({name:name, id:entry.id},1)},'*'); \
+                                delete callbacks[name]; break}}}\
+                            }, \
+                            _dispatchEvent: function(type,evtid,evt){ \
+                                var listeners=Ti._listeners[type]; \
+                                if(listeners){ \
+                                    for(var c=0;c<listeners.length;c++){ \
+                                        var entry=listeners[c]; \
+                                        if(entry.id==evtid){ \
+                                            entry.callback.call(entry.callback,evt) \
+                        }}}}}; \
+                    Ti.API = { \
+                        debug: function(message) { \
+                            window.webkit.messageHandlers.TiApp.postMessage({name:'debug', method: 'log', callback: Ti._JSON({level:'debug', message:message},1)},'*'); \
+                        }, \
+                        error: function(message) { \
+                            window.webkit.messageHandlers.TiApp.postMessage({name:'error', method: 'log', callback: Ti._JSON({level:'error', message:message},1)},'*'); \
+                        }, \
+                        info: function(message){ \
+                            window.webkit.messageHandlers.TiApp.postMessage({name:'info', method: 'log', callback: Ti._JSON({level:'info', message:message},1)},'*'); \
+                        }, \
+                        fatal: function(message){ \
+                            window.webkit.messageHandlers.TiApp.postMessage({name:'fatal', method: 'log', callback: Ti._JSON({level:'fatal', message:message},1)},'*'); \
+                        }, \
+                        warn: function(message){ \
+                            window.webkit.messageHandlers.TiApp.postMessage({name:'warn', method: 'log', callback: Ti._JSON({level:'warn', message:message},1)},'*'); \
+                        }, \
+    }; \
+    ";
+
+    NSString *sourceString = [NSString stringWithFormat:source, _pageToken, baseInjectScript];
+    return [[WKUserScript alloc] initWithSource:sourceString injectionTime:WKUserScriptInjectionTimeAtDocumentStart forMainFrameOnly:NO];
+    }
+
 + (WKUserScript *)userScriptDisableZoom
 {
     NSString *source = @"var meta = document.createElement('meta'); \
@@ -427,14 +517,44 @@ extern NSString * const kTiWKEventCallback;
 
 - (void)userContentController:(WKUserContentController *)userContentController didReceiveScriptMessage:(WKScriptMessage *)message
 {
-    BOOL isEvent = [[message body] isKindOfClass:[NSDictionary class]] && [[message body] objectForKey:@"name"] && [[message body] objectForKey:@"payload"];
+    BOOL isEvent = [[message body] isKindOfClass:[NSDictionary class]] && [[message body] objectForKey:@"name"];
     
     if (isEvent) {
         NSString *name = [[message body] objectForKey:@"name"];
         NSDictionary *payload = [[message body] objectForKey:@"payload"];
         
-        if ([[TiCallbackManager sharedInstance] hasCallbackForName:name]) {
+        if ([[TiCallbackManager sharedInstance] hasCallbackForName:name] && [message.name isEqualToString:@"Ti"]) {
             [[NSNotificationCenter defaultCenter] postNotificationName:kTiWKEventCallback object:nil userInfo:@{@"name": name, @"payload": payload}];
+            return;
+        } else if ([message.name isEqualToString:@"TiApp"]) {
+            NSString *callback = [[message body] objectForKey:@"callback"];
+            
+            SBJSON *decoder = [[SBJSON alloc] init];
+            NSError *error = nil;
+            NSDictionary *event = [decoder fragmentWithString:callback error:&error];
+            
+            NSString *method = [[message body] objectForKey:@"method"];
+            NSString *moduleName = [method isEqualToString:@"log"] ? @"API" : @"App";
+
+            id<TiEvaluator> context = [[(TiWkwebviewWebViewProxy *)self.proxy host] contextForToken:_pageToken];
+            TiModule *tiModule = (TiModule *)[[(TiWkwebviewWebViewProxy *)self.proxy host] moduleNamed:moduleName context:context];
+            [tiModule setExecutionContext:context];
+            
+            if ([method isEqualToString:@"fireEvent"]) {
+                [tiModule fireEvent:name withObject:payload];
+            } else if ([method isEqualToString:@"addEventListener"]) {
+                id listenerid = [event objectForKey:@"id"];
+                [tiModule addEventListener:[NSArray arrayWithObjects:name, listenerid, nil]];
+            } else if ([method isEqualToString:@"removeEventListener"]) {
+                id listenerid = [[message body] objectForKey:@"id"];
+                [tiModule removeEventListener:[NSArray arrayWithObjects:name, listenerid, nil]];
+            } else if ([method isEqualToString:@"log"]) {
+                NSString *level = [event objectForKey:@"level"];
+                NSString *message = [event objectForKey:@"message"];
+                if ([tiModule respondsToSelector:@selector(log:)]) {
+                    [tiModule performSelector:@selector(log:) withObject:@[level, message]];
+                }
+            }
             return;
         }
     }
