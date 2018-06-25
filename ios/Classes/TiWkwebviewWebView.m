@@ -156,8 +156,7 @@ static NSString * const baseInjectScript = @"Ti._hexish=function(a){var r='';var
     
     // Handle remote URL's
     if ([value hasPrefix:@"http"] || [value hasPrefix:@"https"]) {
-        _currentURL = [NSURL URLWithString:[TiUtils stringValue:value]];
-        [self loadRequestWithURL:_currentURL];
+        [self loadRequestWithURL:[NSURL URLWithString:[TiUtils stringValue:value]]];
     // Handle local URL's (WiP)
     } else {
         NSString *path = [[TiUtils toURL:value proxy:self.proxy] absoluteString];
@@ -292,7 +291,7 @@ static NSString * const baseInjectScript = @"Ti._hexish=function(a){var r='';var
     NSMutableURLRequest *request = [NSMutableURLRequest requestWithURL:url
                                                            cachePolicy:[TiUtils intValue:[[self proxy] valueForKey:@"cachePolicy"] def:NSURLRequestUseProtocolCachePolicy]
                                                        timeoutInterval:[TiUtils doubleValue:[[self proxy] valueForKey:@"timeout"] def:60]];
-    
+
     // Set request headers
     NSDictionary<NSString *, id> *requestHeaders = [[self proxy] valueForKey:@"requestHeaders"];
     
@@ -300,8 +299,12 @@ static NSString * const baseInjectScript = @"Ti._hexish=function(a){var r='';var
         for (NSString *key in requestHeaders) {
             [request setValue:requestHeaders[key] forHTTPHeaderField:key];
         }
+
+        // Inject user-agent by using the obj-c nullability to set and reset it
+        NSString *userAgent = requestHeaders[@"User-Agent"];
+        [[self webView] setCustomUserAgent:userAgent];
     }
-    
+
     [[self webView] loadRequest:request];
 }
 
@@ -730,7 +733,7 @@ static NSString * const baseInjectScript = @"Ti._hexish=function(a){var r='';var
 
     // If we have request headers set, we do a little hack to persist them across different URL's,
     // which is not officially supportted by iOS.
-    if (requestHeaders != nil && requestedURL != nil && requestedURL != _currentURL) {
+    if (requestHeaders != nil && requestedURL != nil && ![requestedURL.absoluteString isEqualToString:_currentURL.absoluteString]) {
         _currentURL = requestedURL;
         decisionHandler(WKNavigationResponsePolicyCancel);
         [self loadRequestWithURL:_currentURL];
