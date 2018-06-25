@@ -156,11 +156,7 @@ static NSString * const baseInjectScript = @"Ti._hexish=function(a){var r='';var
     
     // Handle remote URL's
     if ([value hasPrefix:@"http"] || [value hasPrefix:@"https"]) {
-        NSURLRequest *request = [NSURLRequest requestWithURL:[NSURL URLWithString:[TiUtils stringValue:value]]
-                                                 cachePolicy:[TiUtils intValue:[[self proxy] valueForKey:@"cachePolicy"] def:NSURLRequestUseProtocolCachePolicy]
-                                             timeoutInterval:[TiUtils doubleValue:[[self proxy] valueForKey:@"timeout"]  def:60]];
-        [[self webView] loadRequest:request];
-        
+        [self loadRequestWithURL:[NSURL URLWithString:[TiUtils stringValue:value]]];
     // Handle local URL's (WiP)
     } else {
         NSString *path = [[TiUtils toURL:value proxy:self.proxy] absoluteString];
@@ -289,6 +285,28 @@ static NSString * const baseInjectScript = @"Ti._hexish=function(a){var r='';var
 
 
 #pragma mark Utilities
+
+- (void)loadRequestWithURL:(NSURL *)url
+{
+    NSMutableURLRequest *request = [NSMutableURLRequest requestWithURL:url
+                                                           cachePolicy:[TiUtils intValue:[[self proxy] valueForKey:@"cachePolicy"] def:NSURLRequestUseProtocolCachePolicy]
+                                                       timeoutInterval:[TiUtils doubleValue:[[self proxy] valueForKey:@"timeout"] def:60]];
+
+    // Set request headers
+    NSDictionary<NSString *, id> *requestHeaders = [[self proxy] valueForKey:@"requestHeaders"];
+    
+    if (requestHeaders != nil) {
+        for (NSString *key in requestHeaders) {
+            [request setValue:requestHeaders[key] forHTTPHeaderField:key];
+        }
+
+        // Inject user-agent by using the obj-c nullability to set and reset it
+        NSString *userAgent = requestHeaders[@"User-Agent"];
+        [[self webView] setCustomUserAgent:userAgent];
+    }
+
+    [[self webView] loadRequest:request];
+}
 
 + (WKUserScript *)userScriptScalePageToFit
 {
@@ -681,7 +699,10 @@ static NSString * const baseInjectScript = @"Ti._hexish=function(a){var r='';var
 
 - (void)webView:(WKWebView *)webView decidePolicyForNavigationAction:(nonnull WKNavigationAction *)navigationAction decisionHandler:(nonnull void (^)(WKNavigationActionPolicy))decisionHandler
 {
-    if ([[[self proxy] valueForKey:@"allowedURLSchemes"] containsObject:navigationAction.request.URL.scheme]) {
+    NSArray<NSString *> *allowedURLSchemes = [[self proxy] valueForKey:@"allowedURLSchemes"];
+
+    // Handle custom URL schemes
+    if (allowedURLSchemes != nil && [allowedURLSchemes containsObject:navigationAction.request.URL.scheme]) {
         if ([[UIApplication sharedApplication] canOpenURL:navigationAction.request.URL]) {
             // Event to return url to Titanium in order to handle OAuth and more
             if ([[self proxy] _hasListeners:@"handleurl"]) {
@@ -703,6 +724,23 @@ static NSString * const baseInjectScript = @"Ti._hexish=function(a){var r='';var
     }
     
     decisionHandler(WKNavigationActionPolicyAllow);
+}
+
+- (void)webView:(WKWebView *)webView decidePolicyForNavigationResponse:(WKNavigationResponse *)navigationResponse decisionHandler:(void (^)(WKNavigationResponsePolicy))decisionHandler
+{
+    NSDictionary<NSString *, id> *requestHeaders = [[self proxy] valueForKey:@"requestHeaders"];
+    NSURL *requestedURL = navigationResponse.response.URL;
+
+    // If we have request headers set, we do a little hack to persist them across different URL's,
+    // which is not officially supportted by iOS.
+    if (requestHeaders != nil && requestedURL != nil && ![requestedURL.absoluteString isEqualToString:_currentURL.absoluteString]) {
+        _currentURL = requestedURL;
+        decisionHandler(WKNavigationResponsePolicyCancel);
+        [self loadRequestWithURL:_currentURL];
+        return;
+    }
+
+    decisionHandler(WKNavigationResponsePolicyAllow);
 }
 
 static NSString *UIKitLocalizedString(NSString *string)

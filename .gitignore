@@ -1,3 +1,4 @@
-iphone/build
 /ios/build
+/ios/metadata.json
 *.xcuserstate
+ios/ti.wkwebview-iphone-*.zip

@@ -19,6 +19,7 @@
     CGFloat autoWidth;
     
     BOOL willHandleTouches;
+    NSURL *_currentURL;
 }
 
 - (void)registerNotificationCenter;
