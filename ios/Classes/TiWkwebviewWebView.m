@@ -44,20 +44,25 @@ static NSString *const baseInjectScript = @"Ti._hexish=function(a){var r='';var 
     [config setUserContentController:controller];
     _willHandleTouches = [TiUtils boolValue:[[self proxy] valueForKey:@"willHandleTouches"] def:YES];
 
-    dispatch_sync(dispatch_get_main_queue(), ^{
-      _webView = [[WKWebView alloc] initWithFrame:[self bounds] configuration:config];
+    __weak TiWkwebviewWebView *weakSelf = self;
+    
+    TiThreadPerformOnMainThread(^{
+      TiWkwebviewWebView *strongSelf = weakSelf;
+      if (strongSelf == nil) return;
+
+      strongSelf->_webView = [[WKWebView alloc] initWithFrame:[weakSelf bounds] configuration:config];
       
-      [_webView setUIDelegate:self];
-      [_webView setNavigationDelegate:self];
-      [_webView setContentMode:[self contentModeForWebView]];
-      [_webView setAutoresizingMask:UIViewAutoresizingFlexibleHeight | UIViewAutoresizingFlexibleWidth];
+      [strongSelf->_webView setUIDelegate:self];
+      [strongSelf->_webView setNavigationDelegate:self];
+      [strongSelf->_webView setContentMode:[self contentModeForWebView]];
+      [strongSelf->_webView setAutoresizingMask:UIViewAutoresizingFlexibleHeight | UIViewAutoresizingFlexibleWidth];
       
       // KVO for "progress" event
-      [_webView addObserver:self forKeyPath:@"estimatedProgress" options:NSKeyValueObservingOptionNew context:NULL];
+      [strongSelf->_webView addObserver:self forKeyPath:@"estimatedProgress" options:NSKeyValueObservingOptionNew context:NULL];
       
-      [self addSubview:_webView];
+      [self addSubview:strongSelf->_webView];
       [self _initializeLoadingIndicator];
-    });
+    }, YES);
   }
 
   return _webView;
