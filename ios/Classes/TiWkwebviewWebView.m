@@ -45,27 +45,44 @@ static NSString *const baseInjectScript = @"Ti._hexish=function(a){var r='';var 
     _willHandleTouches = [TiUtils boolValue:[[self proxy] valueForKey:@"willHandleTouches"] def:YES];
 
     __weak TiWkwebviewWebView *weakSelf = self;
-    
+
     TiThreadPerformOnMainThread(^{
       TiWkwebviewWebView *strongSelf = weakSelf;
-      if (strongSelf == nil) return;
+      if (strongSelf == nil)
+        return;
 
       strongSelf->_webView = [[WKWebView alloc] initWithFrame:[weakSelf bounds] configuration:config];
-      
+
       [strongSelf->_webView setUIDelegate:self];
       [strongSelf->_webView setNavigationDelegate:self];
       [strongSelf->_webView setContentMode:[self contentModeForWebView]];
       [strongSelf->_webView setAutoresizingMask:UIViewAutoresizingFlexibleHeight | UIViewAutoresizingFlexibleWidth];
-      
+
       // KVO for "progress" event
       [strongSelf->_webView addObserver:self forKeyPath:@"estimatedProgress" options:NSKeyValueObservingOptionNew context:NULL];
-      
+
       [self addSubview:strongSelf->_webView];
       [self _initializeLoadingIndicator];
-    }, YES);
+    },
+        YES);
   }
 
   return _webView;
+}
+
+- (void)viewDidClose
+{
+  if (_webView != nil) {
+    [_webView setUIDelegate:nil];
+    [_webView setNavigationDelegate:nil];
+
+    if ([_webView isLoading]) {
+      [_webView stopLoading];
+    }
+    [_webView removeObserver:self forKeyPath:@"estimatedProgress"];
+    [_webView removeFromSuperview];
+    _webView = nil;
+  }
 }
 
 #pragma mark Public API's

@@ -31,6 +31,8 @@
 
 - (WKWebView *)webView;
 
+- (void)viewDidClose;
+
 - (void)fireEvent:(id)listener withObject:(id)obj remove:(BOOL)yn thisObject:(id)thisObject_;
 
 @end
