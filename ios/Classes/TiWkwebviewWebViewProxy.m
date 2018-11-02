@@ -73,6 +73,9 @@
     [[self host] unregisterContext:(id<TiEvaluator>)self forToken:_pageToken];
     _pageToken = nil;
   }
+
+  [[self webView] viewDidClose];
+
   NSNotification *notification = [NSNotification notificationWithName:kTiContextShutdownNotification object:self];
   WARN_IF_BACKGROUND_THREAD_OBJ;
   [[NSNotificationCenter defaultCenter] postNotification:notification];
