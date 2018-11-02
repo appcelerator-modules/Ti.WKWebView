@@ -48,8 +48,9 @@ static NSString *const baseInjectScript = @"Ti._hexish=function(a){var r='';var 
 
     TiThreadPerformOnMainThread(^{
       TiWkwebviewWebView *strongSelf = weakSelf;
-      if (strongSelf == nil)
+      if (strongSelf == nil) {
         return;
+      }
 
       strongSelf->_webView = [[WKWebView alloc] initWithFrame:[weakSelf bounds] configuration:config];
 
