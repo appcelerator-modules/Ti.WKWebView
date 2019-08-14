@@ -89,7 +89,7 @@ Edit the iOS and modules section of your `tiapp.xml` file to include this module
 | addEventListener | Name (String), Callback (Function) | Void |
 | removeEventListener | Name (String), Callback (Function) | Void |
 | takeSnapshot * | Callback (Function) | Void |
-| addUserScript | Object: source (String), injectionTime (INJECTION_TIME_*), mainFrameOnly (Boolean | Void |
+| addUserScript | Object: source (String), injectionTime (INJECTION_TIME_*), mainFrameOnly (Boolean) | Void |
 | removeAllUserScripts | - | Void |
 | addScriptMessageHandler | Name (String) | Void |
 | removeScriptMessageHandler | Name (String) | Void |
@@ -152,10 +152,10 @@ triggered. This also ensures that your app does not receive unwanted messages by
 
 After sending the message from your HTML file, it will trigger the `message` event with the 
 following event keys:
-- url (The url of the triggered message)
-- body (The message body. In this case: `{message: 'Titanium rocks'}`
-- name (The name of the message. In this case: 'Ti')
-- isMainFrame (A boolean determing if the messsage was sent from the main-frame)
+- `url`: The url of the triggered message
+- `body`: The message body. In this case: `{message: 'Titanium rocks'}`
+- `name`: The name of the message. In this case: 'Ti'
+- `isMainFrame`: A boolean determine if the message was sent from the main-frame
 
 For sending messages from the app to the Web View, use `evalJS` to call your JS methods like this:
 ```javascript
