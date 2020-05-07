@@ -1,3 +1,10 @@
+# Note
+
+Starting with SDK 8.0.0.GA WKWebView is used as the default WebView component. So if you're using SDK 8.0.0.GA or higher you can use `Ti.UI.createWebView()` on Classic or `<WebView>` on Alloy and you can drop WKWebView Module. If you currently are NOT on 8.0.0.GA and higher you cannot submit an update to AppStore anyways, so it is time to upgrade!
+
+If there are any specific features in the module that are not yet in the SDK and you would like to see implemented, it is highly recommended to raise a ticket on [Jira](https://jira.appcelerator.org)
+
+
 # Ti.WKWebView 
 [![License](http://hans-knoechel.de/shields/shield-license.svg?v=2)](./LICENSE)  [![Support](http://hans-knoechel.de/shields/shield-slack.svg?v=3)](http://tislack.org)
 
